@@ -272,6 +272,7 @@ select.mf-input option{background:#111;color:#fff}
 .d-opt-price,.p-opt-logo{font-size:.58rem;color:var(--g5);text-align:right;flex-shrink:0}
 /* PAYMENT ICONS GRID */
 .pay-icons-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:1.2rem}
+.ck-err{border-color:var(--red)!important;box-shadow:0 0 0 1px var(--red)}
 .pay-icon-card{border:1.5px solid var(--w3);padding:.8rem .6rem;cursor:pointer;transition:all .2s;text-align:center;display:flex;flex-direction:column;align-items:center;gap:.4rem}
 .pay-icon-card:hover{border-color:var(--k)}
 .pay-icon-card.on{border-color:var(--k);background:var(--w2)}
@@ -1480,7 +1481,30 @@ let cart=JSON.parse(localStorage.getItem("sl_cart")||"[]");
 let currentCat="homme";
 const FMT=n=>n.toLocaleString("fr-FR")+" FCFA";
 
+// Vérifie le formulaire de livraison : impossible de passer au paiement s'il est incomplet
+function validateDelivery(){
+  const get=i=>((document.getElementById(i)||{}).value||'').trim();
+  const rules=[
+    ['ckPrenom',v=>v.length>=2,'ton prénom'],
+    ['ckNom',v=>v.length>=2,'ton nom'],
+    ['ckAdresse',v=>v.length>=5,'ton adresse complète'],
+    ['ckVille',v=>v.length>=2,'ta ville / commune'],
+    ['ckTel',v=>v.replace(/\D/g,'').length>=8,'un numéro de téléphone valide'],
+    ['ckEmail',v=>v===''||/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v),'un email valide (ou laisse vide)']
+  ];
+  let first=null,msg='';
+  rules.forEach(([id,ok,label])=>{
+    const el=document.getElementById(id);if(!el) return;
+    const bad=!ok(get(id));
+    el.classList.toggle('ck-err',bad);
+    if(bad&&!first){first=el;msg='Merci de renseigner '+label;}
+    if(!el.dataset.ckBound){el.dataset.ckBound='1';el.addEventListener('input',()=>el.classList.remove('ck-err'));}
+  });
+  if(first){first.focus();toast(msg);return false;}
+  return true;
+}
 function nav(id){
+  if(id==="checkout-payment"&&!validateDelivery()) id="checkout-delivery";
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
   document.getElementById("page-"+id).classList.add("active");
   document.querySelectorAll(".nav-links a").forEach(a=>a.classList.remove("on"));
@@ -1784,6 +1808,7 @@ async function decrementStock(){
   }
 }
 async function placeOrder(){
+  if(!validateDelivery()){nav('checkout-delivery');return;}
   // Anti-doublon : désactive le bouton immédiatement pour éviter le double-clic
   const payBtn=document.querySelector('#page-checkout-payment .btn-submit');
   if(payBtn){
